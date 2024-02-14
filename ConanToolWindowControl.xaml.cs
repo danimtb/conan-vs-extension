@@ -16,6 +16,9 @@ using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.VCProjectEngine;
 using System.Collections;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Reflection;
+using System.Globalization;
 
 
 namespace conan_vs_extension
@@ -216,22 +219,63 @@ target_link_libraries(your_target_name PRIVATE {cmakeTargetName})
         [SuppressMessage("Microsoft.Globalization", "CA1300:SpecifyMessageBoxOptions", Justification = "Sample code")]
         [SuppressMessage("StyleCop.CSharp.NamingRules", "SA1300:ElementMustBeginWithUpperCaseLetter", Justification = "Default event handler naming pattern")]
 
+        public async Task SaveConanPrebuildEventAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            DTE dte = ServiceProvider.GlobalProvider.GetService(typeof(DTE)) as DTE;
+            if (dte == null)
+            {
+                System.Diagnostics.Debug.WriteLine("Can't get the DTE.");
+                return;
+            }
+
+            string conanPath = GlobalSettings.ConanExecutablePath;
+
+            // TODO: Do this only for the current/active project?
+            foreach (Project project in dte.Solution.Projects)
+            {
+                if (project.Object is VCProject vcProject)
+                {
+                    foreach (VCConfiguration vcConfig in (IEnumerable)vcProject.Configurations)
+                    {
+                        IVCCollection tools = (IVCCollection)vcConfig.Tools;
+                        VCPreBuildEventTool preBuildTool = (VCPreBuildEventTool)tools.Item("VCPreBuildEventTool");
+
+                        if (preBuildTool != null)
+                        {
+                            string conanInstallCommand = $"\"{conanPath}\" install --requires=fmt/10.2.1 -g=MSBuildDeps -s=build_type=$(Configuration) --build=missing";
+                            string currentPreBuildEvent = preBuildTool.CommandLine;
+
+                            // FIXME: maybe better to call a script that has always the same name so we can change the script
+                            // if needed without changing the prebuild event.
+                            if (!currentPreBuildEvent.Contains("conan"))
+                            {
+                                preBuildTool.CommandLine = conanInstallCommand + Environment.NewLine + currentPreBuildEvent;
+                                project.Save();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         private void ShowConfigurationDialog()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-
             DTE dte = Package.GetGlobalService(typeof(DTE)) as DTE;
-
-            if (dte != null)
+            if (dte == null)
             {
-                dte.ExecuteCommand("Tools.Options", GuidList.strConanOptionsPage);
+                System.Diagnostics.Debug.WriteLine("Can't get the DTE.");
+                return;
             }
-
+            dte.ExecuteCommand("Tools.Options", GuidList.strConanOptionsPage);
         }
-
+        
         private void Configuration_Click(object sender, RoutedEventArgs e)
         {
             ShowConfigurationDialog();
+            _ = SaveConanPrebuildEventAsync();
         }
 
         private void ShowPackages_Click(object sender, RoutedEventArgs e)
