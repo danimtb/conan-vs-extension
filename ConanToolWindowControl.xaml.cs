@@ -278,6 +278,28 @@ target_link_libraries(your_target_name PRIVATE {cmakeTargetName})
             _ = SaveConanPrebuildEventAsync();
         }
 
+        private string getProfileName(string vcConfigName)
+        {
+            return vcConfigName.Replace("|", "_");
+        }
+
+        private string getConanArch(string platform)
+        {
+            var archMap = new Dictionary<string, string>();
+            archMap["x64"] = "x86_64";
+            archMap["Win32"] = "x86";
+            return archMap[platform];
+        }
+
+        private string getConanCompilerVersion(string platformToolset)
+        {
+            var msvcVersionMap = new Dictionary<string, string>();
+            msvcVersionMap["v143"] = "193";
+            msvcVersionMap["v142"] = "192";
+            msvcVersionMap["v141"] = "191";
+            return msvcVersionMap[platformToolset];
+        }
+
         private void ShowPackages_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -285,65 +307,38 @@ target_link_libraries(your_target_name PRIVATE {cmakeTargetName})
                 DTE2 dte = (DTE2)ServiceProvider.GlobalProvider.GetService(typeof(DTE));
                 if (dte != null && dte.Solution != null && dte.Solution.Projects != null)
                 {
-                    string projectDirectory = System.IO.Path.GetDirectoryName(dte.Solution.FullName);
-                    string conanProjectDirectory = System.IO.Path.Combine(projectDirectory, ".conan");
-
-                    if (!Directory.Exists(conanProjectDirectory))
+                    foreach (Project project in dte.Solution.Projects)
                     {
-                        Directory.CreateDirectory(conanProjectDirectory);
-                    }
-
-                    string fileName = "conan.config.json";
-                    string filePath = System.IO.Path.Combine(conanProjectDirectory, fileName);
-
-                    if (!File.Exists(filePath))
-                    {
-                        String toolset = "";
-                        foreach (Project project in dte.Solution.Projects)
+                        if (project.Object is VCProject vcProject)
                         {
-                            if (project.Object is VCProject vcProject)
-                            {
+                            string projectDirectory = System.IO.Path.GetDirectoryName(project.FullName);
+                            string conanProjectDirectory = System.IO.Path.Combine(projectDirectory, ".conan");
 
-                                foreach (VCConfiguration vcConfig in (IEnumerable)vcProject.Configurations)
+                            if (!Directory.Exists(conanProjectDirectory))
+                            {
+                                Directory.CreateDirectory(conanProjectDirectory);
+                            }
+
+                            foreach (VCConfiguration vcConfig in (IEnumerable)vcProject.Configurations)
+                            {
+                                string profileName = getProfileName(vcConfig.Name);
+                                string profilePath = System.IO.Path.Combine(conanProjectDirectory, profileName);
+
+                                if (!File.Exists(profilePath))
                                 {
-                                    // TODO: Make the proper conversion from toolset to msvc conan versioning
-                                    toolset = vcConfig.Evaluate("$(PlatformToolset)").ToString();
-                                    // var cppstd = vcConfig.Evaluate("$(ClCompile-LanguageStandard)");
-                                    break;
+                                    string toolset = vcConfig.Evaluate("$(PlatformToolset)").ToString();
+                                    string compilerVersion = getConanCompilerVersion(toolset);
+                                    string arch = getConanArch(vcConfig.Evaluate("$(PlatformName)").ToString());
+                                    string buildType = vcConfig.ConfigurationName;
+                                    string profileContent = $"[settings]\narch={arch}\nbuild_type={buildType}\ncompiler=msvc\ncompiler.cppstd=14\ncompiler.runtime=dynamic\n" +
+                                        $"compiler.runtime_type={buildType}\ncompiler.version={compilerVersion}\nos=Windows";
+                                    File.WriteAllText(profilePath, profileContent);
                                 }
                             }
                         }
-
-                        var conan_config = new Dictionary<string, Dictionary<string, string>>();
-                        string releaseProfileName = "release_x86_64";
-                        string debugProfileName = "debug_x86_64";
-                        conan_config["configurations"] = new Dictionary<string, string>();
-                        conan_config["configurations"]["Release|x86_64"] = releaseProfileName;
-                        conan_config["configurations"] = new Dictionary<string, string>();
-                        conan_config["configurations"]["Debug|x86_64"] = debugProfileName;
-                        var jsonContent = JsonConvert.SerializeObject(conan_config, Formatting.Indented);
-                        File.WriteAllText(filePath, jsonContent);
-
-                        string releaseProfilePath = System.IO.Path.Combine(conanProjectDirectory, releaseProfileName);
-                        string releaseProfileContent = "[settings]\narch=x86_64\nbuild_type=Release\ncompiler=msvc\ncompiler.cppstd=14\ncompiler.runtime=dynamic\n" +
-                            $"compiler.runtime_type=Release\ncompiler.version={toolset}\nos=Windows";
-                        File.WriteAllText(releaseProfilePath, releaseProfileContent);
-
-                        string debugProfilePath = System.IO.Path.Combine(conanProjectDirectory, debugProfileName);
-                        string debugProfileContent = "[settings]\narch=x86_64\nbuild_type=Debug\ncompiler=msvc\ncompiler.cppstd=14\ncompiler.runtime=dynamic\n" +
-                            $"compiler.runtime_type=Release\ncompiler.version={toolset}\nos=Windows";
-                        File.WriteAllText(debugProfilePath, debugProfileContent);
-
-                        MessageBox.Show($"Generated '{fileName}' for actual project.", "Conan config file generated", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
-                    else
-                    {
-                        MessageBox.Show($"Conan config file '{fileName}' found for actual project.", "Conan config file found", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("Could not get current active project", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                    MessageBox.Show($"Generated profiles for actual project.", "Conan profiles generated", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
