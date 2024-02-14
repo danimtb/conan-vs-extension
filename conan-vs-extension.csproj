@@ -62,10 +62,12 @@
     </Compile>
     <Compile Include="ConanToolWindowPackage.cs" />
     <Compile Include="Guids.cs" />
+    <Compile Include="ProjectConfigurationManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Key.snk" />
+    <EmbeddedResource Include="Resources\targets-data.json" />
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>
