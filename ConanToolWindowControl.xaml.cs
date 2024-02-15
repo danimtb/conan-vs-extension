@@ -305,10 +305,6 @@ target_link_libraries(your_target_name PRIVATE {cmakeTargetName})
 
         }
 
-        private void ShowPackages_Click(object sender, RoutedEventArgs e)
-        {
-        }
-
         private string getProfileName(string vcConfigName)
         {
             return vcConfigName.Replace("|", "_");
