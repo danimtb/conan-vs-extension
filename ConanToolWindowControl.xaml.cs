@@ -323,6 +323,13 @@ target_link_libraries(your_target_name PRIVATE {cmakeTargetName})
 
         private string getConanCppstd(string languageStandard)
         {
+            // https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version?view=msvc-170
+
+            if (languageStandard.ToLower().Contains("default"))
+            {
+                return "14";
+            }
+
             List<string> cppStdValues = new List<string>() { "14", "17", "20", "23" };
 
             foreach (string cppStdValue in cppStdValues)
