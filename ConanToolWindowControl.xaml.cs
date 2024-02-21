@@ -434,7 +434,12 @@ class ConanApplication(ConanFile):
         private void ShowPackages_Click(object sender, RoutedEventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-
+            Array activeSolutionProjects = _dte.ActiveSolutionProjects as Array;
+            Project activeProject = activeSolutionProjects.GetValue(0) as Project;
+            string projectFilePath = activeProject.FullName;
+            string projectName = activeProject.Name;
+            string projectDirectory = Path.GetDirectoryName(projectFilePath);
+            MessageBox.Show(string.Join("\n", GetConandataRequirements(projectDirectory)), $"Installed packages for '{projectName}' - Conan C/C++ Package Manager");
         }
 
         private async Task UpdateJsonDataAsync()
