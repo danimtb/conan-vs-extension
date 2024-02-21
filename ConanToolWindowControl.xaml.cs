@@ -434,11 +434,11 @@ class ConanApplication(ConanFile):
         private void ShowPackages_Click(object sender, RoutedEventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            Array activeSolutionProjects = _dte.ActiveSolutionProjects as Array;
-            Project activeProject = activeSolutionProjects.GetValue(0) as Project;
-            string projectFilePath = activeProject.FullName;
-            string projectName = activeProject.Name;
+            Project startupProject = ProjectConfigurationManager.GetStartupProject(_dte);
+            string projectFilePath = startupProject.FullName;
+            string projectName = startupProject.Name;
             string projectDirectory = Path.GetDirectoryName(projectFilePath);
+
             MessageBox.Show(string.Join("\n", GetConandataRequirements(projectDirectory)), $"Installed packages for '{projectName}' - Conan C/C++ Package Manager");
         }
 
