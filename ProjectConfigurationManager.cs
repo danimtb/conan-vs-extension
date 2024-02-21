@@ -1,6 +1,7 @@
 using EnvDTE;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.VCProjectEngine;
+using Microsoft.VisualStudio.VSHelp;
 using System;
 using System.Collections;
 using System.IO;
@@ -101,6 +102,28 @@ namespace conan_vs_extension
             }
         }
 
+        private static async Task SaveConanCustomBuildStepAsync(Project project, VCConfiguration vcConfig, string conanCommand)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            VCProject vcProject = project.Object as VCProject;
+            IVCCollection tools = (IVCCollection)vcConfig.Tools;
+            VCCustomBuildTool customBuildStepTool = (VCCustomBuildTool)tools.Item("VCCustomBuildTool");
+
+            if (customBuildStepTool != null)
+            {
+                string currentCustomBuildStepTool = customBuildStepTool.CommandLine;
+                if (!currentCustomBuildStepTool.Contains("conan"))
+                {
+                    // FIXME: better do this with a script file?
+                    customBuildStepTool.CommandLine = conanCommand + Environment.NewLine + currentCustomBuildStepTool;
+                    customBuildStepTool.Description = "Conan C/C++ Package Manager - Installing dependencies";
+                    customBuildStepTool.Outputs = "output.txt";
+                    vcProject.Save();
+                }
+            }
+        }
+
         public static void SaveConanPrebuildEventsAllConfig(Project project)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
@@ -110,7 +133,8 @@ namespace conan_vs_extension
             {
                 string profileName = ConanProfilesManager.getProfileName(vcConfig);
                 string prebuildCommand = $"\"{conanPath}\" install . -pr:h=.conan/{profileName} --build=missing";
-                _ = SaveConanPrebuildEventAsync(project, vcConfig, prebuildCommand);
+                // _ = SaveConanPrebuildEventAsync(project, vcConfig, prebuildCommand);
+                _ = SaveConanCustomBuildStepAsync(project, vcConfig, prebuildCommand);
             }
 
         }
